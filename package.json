@@ -1,0 +1,12 @@
+{
+  "name": "openimage",
+  "version": "1.0.0",
+  "description": "Minimal glass-style image generator on top of Cloudflare Workers AI (free tier). Bring your own API token.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "MOCK=1 node server.js"
+  },
+  "engines": { "node": ">=20" }
+}
