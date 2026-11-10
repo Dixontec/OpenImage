@@ -14,6 +14,8 @@ const ICONS = {
   sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M12 8v4M12 15.5v.01"/>',
   sync: '<path d="M20 11a8 8 0 0 0-14-4M4 5v4h4M4 13a8 8 0 0 0 14 4M20 19v-4h-4"/>',
 };
 const icon = (n) => `<i data-i="${n}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg></i>`;
@@ -182,6 +184,7 @@ const warmDecode = (items) => {
 const setBg = (item) => { const bg = $('#bgimg'); bg.style.backgroundImage = `url("${item.url}")`; bg.classList.add('on'); };
 
 function showItem(item, { instant = false, bg = true } = {}) {
+  resetView();
   shown = item;
   const img = $('#out');
   img.classList.remove('show');
@@ -197,6 +200,7 @@ function showItem(item, { instant = false, bg = true } = {}) {
 }
 
 function resetStage() {
+  resetView();
   shown = null;
   const img = $('#out'); img.classList.remove('show'); img.removeAttribute('src');
   $('#frame').classList.add('is-empty'); $('#frame').classList.remove('has-img');
@@ -240,6 +244,7 @@ const reveal = (fr, ...hidden) => { fr.style.visibility = ''; $('#out').style.tr
 const collapseToHistory = () => runFlight(async () => {
   if (!shown || busy) return;
   const th = thumbOf(shown.id); if (!th) return;
+  resetView();
   th.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const fr = $('#frame'); const item = shown;
   const c = flyClone(item.url, rectOf(fr), rectOf(th), '6px', '10px');
@@ -252,7 +257,8 @@ const collapseToHistory = () => runFlight(async () => {
 
 const openFromThumb = (item, thB) => runFlight(async () => {
   if (busy || shown?.id === item.id) return;
-  thB.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (thB.closest('.thumb')) thB.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  resetView();
   const cur = shown; const thA = cur && thumbOf(cur.id);
   const fr = $('#frame');
   const fromA = cur && rectOf(fr); const toA = thA && rectOf(thA); const fromB = rectOf(thB);
@@ -279,6 +285,208 @@ document.addEventListener('click', (e) => {
   if (['BODY', 'HTML'].includes(e.target.tagName) || e.target.matches('#stage, .top, #history')) collapseToHistory();
 });
 
+/* ------------------------------------------------------------------ zoom da imagem */
+const view = { s: 1, x: 0, y: 0 };
+const MAX_ZOOM = 8;
+let overscroll = 0, lastWheel = 0, lockUntil = 0;
+
+function applyView() {
+  const img = $('#out'), fr = $('#frame');
+  img.style.scale = view.s === 1 ? '' : String(view.s);
+  img.style.translate = view.s === 1 ? '' : `${view.x}px ${view.y}px`;
+  fr.classList.toggle('zoomed', view.s > 1);
+  const b = $('#zoomBadge'); b.hidden = view.s <= 1; b.textContent = `${Math.round(view.s * 100)}%  ×`;
+}
+function resetView() { if (view.s === 1 && !view.x && !view.y) return; view.s = 1; view.x = 0; view.y = 0; applyView(); }
+function clampPan() {
+  const fr = $('#frame'); const mx = ((view.s - 1) * fr.clientWidth) / 2, my = ((view.s - 1) * fr.clientHeight) / 2;
+  view.x = Math.min(mx, Math.max(-mx, view.x)); view.y = Math.min(my, Math.max(-my, view.y));
+}
+function zoomAt(newS, cx, cy) {
+  const r = $('#frame').getBoundingClientRect();
+  const px = Math.max(-r.width / 2, Math.min(r.width / 2, cx - (r.left + r.width / 2)));
+  const py = Math.max(-r.height / 2, Math.min(r.height / 2, cy - (r.top + r.height / 2)));
+  const s2 = Math.min(MAX_ZOOM, Math.max(1, newS)); const k = s2 / view.s;
+  view.x = px - (px - view.x) * k; view.y = py - (py - view.y) * k; view.s = s2;
+  if (s2 === 1) { view.x = 0; view.y = 0; } else clampPan();
+  applyView();
+}
+const wheelDelta = (e) => e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+
+$('#stage').addEventListener('wheel', (e) => {
+  if (!shown || busy || flight || wallOpen) return;
+  e.preventDefault();
+  const now = performance.now(); const dy = wheelDelta(e);
+  if (dy < 0) { overscroll = 0; zoomAt(view.s * Math.exp(-dy * 0.0016), e.clientX, e.clientY); }
+  else if (view.s > 1.001) {
+    zoomAt(view.s * Math.exp(-dy * 0.0016), e.clientX, e.clientY);
+    if (view.s <= 1.001) { lockUntil = now + 600; overscroll = 0; }
+  } else if (now >= lockUntil) {
+    // já no tamanho normal: continuar afastando abre o mural
+    if (now - lastWheel > 350) overscroll = 0;
+    overscroll += dy;
+    if (overscroll > 260) { overscroll = 0; openWall(); }
+  }
+  lastWheel = now;
+}, { passive: false });
+
+(() => { // arrastar com a imagem ampliada + duplo clique
+  const fr = $('#frame'); let drag = null;
+  fr.addEventListener('pointerdown', (e) => {
+    if (view.s <= 1 || e.button !== 0 || e.target.closest('#tools, #zoomBadge')) return;
+    drag = { x: e.clientX, y: e.clientY }; fr.setPointerCapture(e.pointerId); fr.classList.add('dragging');
+  });
+  fr.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    view.x += e.clientX - drag.x; view.y += e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY };
+    clampPan(); applyView();
+  });
+  const end = () => { drag = null; fr.classList.remove('dragging'); };
+  fr.addEventListener('pointerup', end); fr.addEventListener('pointercancel', end);
+  fr.addEventListener('dblclick', (e) => {
+    if (!shown || busy || e.target.closest('#tools, #zoomBadge')) return;
+    if (view.s > 1) resetView(); else zoomAt(2.5, e.clientX, e.clientY);
+  });
+  $('#zoomBadge').onclick = resetView;
+})();
+
+/* ------------------------------------------------------------------ mural infinito */
+const wallEl = $('#wall'), worldEl = $('#wallWorld');
+let wallOpen = false, wallClosing = false;
+const W = { z: 0.8, zt: 0.8, cx: 0, cy: 0, anchor: null, vx: 0, vy: 0, dragging: false, layout: null, tiles: new Map(), raf: 0, dirty: true };
+const TILE_W = 260, GAP = 14;
+
+function layoutWall(items) {
+  const n = items.length; const M = Math.max(12, n);
+  const cells = Array.from({ length: M }, (_, k) => items[k % n]);
+  const C = Math.min(7, Math.max(3, Math.round(Math.sqrt(M * 1.4))));
+  const cols = Array.from({ length: C }, () => ({ h: 0, list: [] }));
+  for (const it of cells) {
+    const ar = Math.min(2, Math.max(0.5, it.w / it.h)); const th = TILE_W / ar;
+    const c = cols.reduce((a, b) => (b.h < a.h ? b : a));
+    c.list.push({ item: it, h: th }); c.h += th + GAP;
+  }
+  const H = Math.max(...cols.map((c) => c.h));
+  const out = [];
+  cols.forEach((c, ci) => {            // iguala a altura das colunas para o mural emendar sem buracos
+    const k = (H - c.list.length * GAP) / c.list.reduce((s, t) => s + t.h, 0); let y = 0;
+    for (const t of c.list) { const h = t.h * k; out.push({ item: t.item, x: ci * (TILE_W + GAP), y, w: TILE_W, h }); y += h + GAP; }
+  });
+  return { cells: out, W: C * (TILE_W + GAP), H };
+}
+const wallMinZoom = () => { const L = W.layout; return Math.max(0.3, innerWidth / (3 * L.W), innerHeight / (3 * L.H)); };
+
+async function makeWallThumb(it) {   // miniatura leve para o mural (evita desenhar dezenas de imagens grandes)
+  if (it.wurl || it.wpending) return; it.wpending = true;
+  try {
+    const bmp = await createImageBitmap(it.blob, { resizeWidth: 480, resizeQuality: 'medium' });
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+    const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82)); it.wurl = URL.createObjectURL(b);
+    for (const [, t] of W.tiles) if (t.dataset.id === it.id) t.firstChild.src = it.wurl;
+  } catch { /* SVG ou formato sem suporte: segue com a imagem original */ }
+}
+
+function renderWall() {
+  const L = W.layout; if (!L) return;
+  const vw = innerWidth, vh = innerHeight; const hw = vw / (2 * W.z) + 60, hh = vh / (2 * W.z) + 60;
+  worldEl.style.transform = `translate(${vw / 2}px, ${vh / 2}px) scale(${W.z}) translate(${-W.cx}px, ${-W.cy}px)`;
+  const need = new Set();
+  const i0 = Math.floor((W.cx - hw) / L.W), i1 = Math.floor((W.cx + hw) / L.W);
+  const j0 = Math.floor((W.cy - hh) / L.H), j1 = Math.floor((W.cy + hh) / L.H);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    L.cells.forEach((c, k) => {
+      const x = c.x + i * L.W, y = c.y + j * L.H;
+      if (x > W.cx + hw || x + c.w < W.cx - hw || y > W.cy + hh || y + c.h < W.cy - hh) return;
+      const key = `${i}|${j}|${k}`; need.add(key);
+      if (W.tiles.has(key)) return;
+      const el = document.createElement('div'); el.className = `wtile${c.item.id === shown?.id ? ' current' : ''}`; el.dataset.id = c.item.id;
+      Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${c.w}px`, height: `${c.h}px` });
+      const im = document.createElement('img'); im.src = c.item.wurl || c.item.url; im.alt = ''; im.draggable = false; el.append(im);
+      worldEl.append(el); W.tiles.set(key, el);
+    });
+  }
+  for (const [key, el] of W.tiles) if (!need.has(key)) { el.remove(); W.tiles.delete(key); }
+}
+
+function wallTick() {
+  if (!wallOpen) return;
+  const vw = innerWidth, vh = innerHeight;
+  if (Math.abs(W.zt - W.z) > 0.0004) {
+    W.z += (W.zt - W.z) * 0.2; W.dirty = true;
+    if (W.anchor) { W.cx = W.anchor.wx - (W.anchor.sx - vw / 2) / W.z; W.cy = W.anchor.wy - (W.anchor.sy - vh / 2) / W.z; }
+  } else if (W.z !== W.zt) { W.z = W.zt; W.dirty = true; }
+  if (!W.dragging && (Math.abs(W.vx) > 0.15 || Math.abs(W.vy) > 0.15)) {
+    W.cx -= W.vx / W.z; W.cy -= W.vy / W.z; W.vx *= 0.94; W.vy *= 0.94; W.dirty = true;
+  }
+  if (W.dirty) { W.dirty = false; renderWall(); }
+  W.raf = requestAnimationFrame(wallTick);
+}
+function wallZoomTo(zt, sx = innerWidth / 2, sy = innerHeight / 2) {
+  W.zt = Math.min(2.4, Math.max(wallMinZoom(), zt));
+  W.anchor = { sx, sy, wx: W.cx + (sx - innerWidth / 2) / W.z, wy: W.cy + (sy - innerHeight / 2) / W.z };
+}
+
+function openWall() {
+  if (wallOpen || wallClosing || !history.length) return;
+  closePops(); resetView(); wallOpen = true;
+  W.layout = layoutWall(history); W.tiles.clear(); worldEl.innerHTML = '';
+  const cur = W.layout.cells.find((c) => c.item.id === shown?.id) || W.layout.cells[0];
+  W.cx = cur.x + cur.w / 2; W.cy = cur.y + cur.h / 2; W.vx = W.vy = 0; W.anchor = null;
+  const target = Math.max(wallMinZoom(), innerWidth < 820 ? 0.7 : 0.85);
+  W.z = Math.min(2.4, target * 1.5); W.zt = target; W.dirty = true;
+  document.body.classList.add('walling'); wallEl.hidden = false; void wallEl.offsetWidth; wallEl.classList.add('open');
+  renderWall(); cancelAnimationFrame(W.raf); W.raf = requestAnimationFrame(wallTick);
+  history.forEach((it) => makeWallThumb(it));
+}
+
+function closeWall(item, tileEl) {
+  if (!wallOpen || wallClosing) return Promise.resolve();
+  wallClosing = true; W.anchor = null; W.zt = Math.min(2.4, W.z * 1.25);
+  wallEl.classList.remove('open');
+  const fin = () => {
+    wallOpen = false; wallClosing = false; cancelAnimationFrame(W.raf);
+    wallEl.hidden = true; worldEl.innerHTML = ''; W.tiles.clear(); document.body.classList.remove('walling');
+  };
+  const wait = new Promise((r) => setTimeout(r, 460));
+  if (item && tileEl && !busy) {
+    return openFromThumb(item, tileEl).then(() => wait).then(fin);
+  }
+  if (item && busy) toast('Aguarde a geração terminar para abrir outra imagem.');
+  return wait.then(fin);
+}
+
+(() => { // arrastar, inércia, clique
+  let p = null;
+  wallEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.wall-ui') || wallClosing) return;
+    p = { x: e.clientX, y: e.clientY, moved: 0 }; W.dragging = true; W.vx = W.vy = 0; W.anchor = null;
+    wallEl.setPointerCapture(e.pointerId); wallEl.classList.add('dragging');
+  });
+  wallEl.addEventListener('pointermove', (e) => {
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; p.moved += Math.abs(dx) + Math.abs(dy);
+    W.cx -= dx / W.z; W.cy -= dy / W.z; W.vx = dx; W.vy = dy; W.dirty = true;
+  });
+  const up = (e) => {
+    if (!p) return; const q = p; p = null; W.dragging = false; wallEl.classList.remove('dragging');
+    if (q.moved < 6 && e.type === 'pointerup') {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el?.closest('.wall-ui')) return;
+      const tile = el?.closest('.wtile');
+      const item = tile && history.find((h) => h.id === tile.dataset.id);
+      closeWall(item || null, item ? tile : null);   // clicar numa imagem abre; clicar fora volta ao normal
+    }
+  };
+  wallEl.addEventListener('pointerup', up); wallEl.addEventListener('pointercancel', up);
+  wallEl.addEventListener('wheel', (e) => {
+    e.preventDefault(); if (wallClosing) return;
+    wallZoomTo(W.zt * Math.exp(-wheelDelta(e) * 0.0018), e.clientX, e.clientY);
+  }, { passive: false });
+  $('#wallIn').onclick = () => wallZoomTo(W.zt * 1.35);
+  $('#wallOut').onclick = () => wallZoomTo(W.zt / 1.35);
+  window.addEventListener('resize', () => { if (wallOpen) W.dirty = true; });
+})();
+
 let toastTimer = 0;
 function toast(msg, err = false) {
   const t = $('#toast');
@@ -291,6 +499,7 @@ function renderHistory() {
   const box = $('#history');
   if (!history.length) { box.innerHTML = '<span class="history-empty">Histórico</span>'; return; }
   box.innerHTML = '';
+  const wb = document.createElement('button'); wb.className = 'wall-btn glass'; wb.title = 'Mural de imagens'; wb.setAttribute('aria-label', 'Abrir mural'); wb.innerHTML = icon('grid'); wb.onclick = openWall; box.append(wb);
   for (const it of history) {
     const d = document.createElement('div');
     d.className = `thumb${shown?.id === it.id ? ' active' : ''}`; d.dataset.id = it.id; d.style.aspectRatio = '1';
@@ -475,7 +684,7 @@ for (const [id, btn] of [['creditAnchor', '#creditBtn'], ['modelAnchor', '#model
   $(btn).addEventListener('click', (e) => { e.stopPropagation(); togglePop(id); });
 }
 document.addEventListener('click', (e) => { if (!e.target.closest('.anchor')) closePops(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePops(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (wallOpen) closeWall(); else closePops(); } });
 
 /* ------------------------------------------------------------------ refresh geral */
 function refresh() {
@@ -497,6 +706,8 @@ function b64ToBlob(b64) {
   return new Blob([u], { type });
 }
 
+const MODERATION_RE = /nsfw|safety|safe[- ]?search|moderat|flagg?ed|polic(y|ies)|prohibit|disallow|not allowed|inappropriate|sensitive|violat|explicit|censor|blocked|harmful/i;
+
 async function readImage(res) {
   const ct = res.headers.get('content-type') || '';
   if (res.ok && ct.startsWith('image/')) return res.blob();
@@ -508,6 +719,7 @@ async function readImage(res) {
       const rs = nextReset();
       throw new Error(`A cota gratuita de hoje acabou. Ela reinicia às ${rs.local} (00:00 UTC).`);
     }
+    if (e?.code === 3030 || MODERATION_RE.test(msg)) { const er = new Error(msg); er.moderation = true; throw er; }
     if (res.status === 401 || res.status === 403 || /auth|permission|forbidden/i.test(msg)) throw new Error(`A Cloudflare recusou as credenciais${msg ? `: ${msg}` : ''}. Confira o token e o Account ID.`);
     throw new Error(msg || `Erro ${res.status}`);
   }
@@ -543,7 +755,10 @@ function showError(msg) {
   const b = $('#errbox'); b.querySelector('p').textContent = msg; b.hidden = false;
   $('#frame').classList.add('failed'); toast(msg, true);
 }
-function clearError() { $('#errbox').hidden = true; $('#frame').classList.remove('failed'); }
+let policyTimer = 0;
+function showPolicy() { const p = $('#policy'); p.hidden = false; clearTimeout(policyTimer); policyTimer = setTimeout(() => (p.hidden = true), 14000); }
+const hidePolicy = () => { $('#policy').hidden = true; clearTimeout(policyTimer); };
+function clearError() { hidePolicy(); $('#errbox').hidden = true; $('#frame').classList.remove('failed'); }
 
 function setBusy(on) {
   busy = on; if (on) clearError();
@@ -586,7 +801,8 @@ async function generate() {
     setTimeout(() => syncUsage(), 20000);
   } catch (e) {
     setBusy(false);
-    if (e.name !== 'AbortError') { console.error(e); showError(e.message || 'Algo deu errado.'); }
+    if (e.moderation) showPolicy();
+    else if (e.name !== 'AbortError') { console.error(e); showError(e.message || 'Algo deu errado.'); }
   } finally { controller = null; }
 }
 
@@ -678,3 +894,5 @@ dbAll().then((all) => {
 });
 syncUsage();
 $('#errClose').onclick = clearError;
+
+$('#policyX').onclick = hidePolicy;

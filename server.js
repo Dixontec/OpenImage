@@ -63,6 +63,10 @@ async function generate(req, res) {
   if (MOCK) {
     // Modo demonstração: devolve um SVG gerado a partir do prompt, sem tocar na Cloudflare.
     await new Promise((r) => setTimeout(r, 1800));
+    // No modo demo, um prompt com "proibido" simula a recusa por política de conteúdo.
+    if (/proibido/i.test(decodeURIComponent(String(req.headers['x-mock-seed'] || '')))) {
+      return json(res, 400, { success: false, errors: [{ code: 3030, message: 'Input prompt contains NSFW content' }] });
+    }
     const [w, h] = String(req.headers['x-mock-size'] || '1024x1024').split('x').map(Number);
     const seed = [...String(req.headers['x-mock-seed'] || 'x')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
     const hue = seed % 360;

@@ -50,6 +50,7 @@
     </div>
     <div class="errbox" id="errbox" hidden role="alert"><b>Não foi possível gerar</b><p></p><button class="ghost" id="errClose">Fechar</button></div>
     <div class="readout mono" id="readout">1024 × 1024</div>
+    <button class="zoombadge glass mono" id="zoomBadge" hidden title="Voltar ao tamanho normal (duplo clique na imagem)">100%</button>
     <div class="tools glass" id="tools" hidden>
       <button data-act="download" title="Baixar"><i data-i="download"></i><span>Baixar</span></button>
       <button data-act="asref" title="Usar como referência"><i data-i="layers"></i><span>Usar como referência</span></button>
@@ -61,6 +62,11 @@
 <aside class="history" id="history" aria-label="Histórico"></aside>
 
 <section class="dock glass" id="dock">
+  <div class="policy" id="policy" hidden role="alert">
+    <i data-i="shield"></i>
+    <div><b>Prompt não permitido</b><p>Esse pedido vai contra as diretrizes de uso da plataforma OpenImage. Reformule a descrição e tente de novo. Nada foi descontado do contador do app.</p></div>
+    <button class="policy-x" id="policyX" aria-label="Fechar"><i data-i="x"></i></button>
+  </div>
   <div class="refs" id="refs" hidden></div>
   <textarea id="prompt" rows="2" placeholder="Descreva a cena, o enquadramento, a luz…" spellcheck="false"></textarea>
   <div class="controls">
@@ -82,6 +88,12 @@
     <button class="go" id="goBtn"><span class="go-label">Gerar</span><span class="go-cost mono" id="goCost">≈ 0</span></button>
   </div>
 </section>
+
+<div class="wall" id="wall" hidden role="dialog" aria-label="Mural de imagens">
+  <div class="wall-world" id="wallWorld"></div>
+  <div class="wall-ui wall-hint glass">Arraste para explorar · role para aproximar · clique numa imagem para abrir</div>
+  <div class="wall-ui wall-zoom glass"><button id="wallOut" aria-label="Afastar">−</button><button id="wallIn" aria-label="Aproximar">+</button></div>
+</div>
 
 <div class="toast glass" id="toast" role="status" hidden></div>
 <div class="dropveil" id="dropveil" hidden><div>Solte para adicionar como referência</div></div>
