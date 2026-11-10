@@ -664,7 +664,7 @@ function renderCredit() {
   const pop = $('#creditPop');
   pop.innerHTML = `
     <h3 style="padding-left:0">Cota gratuita de hoje</h3>
-    <div class="credit-big"><span class="mono" style="font-family:var(--serif);letter-spacing:-.03em">${fmt(rem)}</span><small>de ${fmt(DAILY)} neurônios</small></div>
+    <div class="credit-big"><span class="mono" style="font-family:var(--serif);font-weight:300;font-variation-settings:var(--serif-axes);letter-spacing:-.035em">${fmt(rem)}</span><small>de ${fmt(DAILY)} neurônios</small></div>
     <div class="bar"><i data-level="${lv}" style="width:${(pct * 100).toFixed(1)}%"></i></div>
     <div class="credit-row"><span>Usados: <span class="mono">${fmt(used())}</span></span><span>Reinicia em ${rs.h}h${String(rs.m).padStart(2, '0')} (${rs.local})</span></div>
     <div class="credit-list"><h4>Quanto rende · ${d.w}×${d.h}${refs.length ? ` · ${refs.length} ref.` : ''}</h4>${rows}</div>
