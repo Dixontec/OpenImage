@@ -356,56 +356,70 @@ let wallOpen = false, wallClosing = false;
 const W = { z: 0.8, zt: 0.8, cx: 0, cy: 0, anchor: null, vx: 0, vy: 0, dragging: false, layout: null, tiles: new Map(), raf: 0, dirty: true };
 const TILE_W = 260, GAP = 14;
 
+// Mosaico finito: cada imagem aparece uma única vez, em colunas de alturas naturais, centrado em (0,0).
 function layoutWall(items) {
-  const n = items.length; const M = Math.max(12, n);
-  const cells = Array.from({ length: M }, (_, k) => items[k % n]);
-  const C = Math.min(7, Math.max(3, Math.round(Math.sqrt(M * 1.4))));
+  const n = items.length;
+  const C = Math.min(7, Math.max(1, Math.round(Math.sqrt(n * 1.4))));
   const cols = Array.from({ length: C }, () => ({ h: 0, list: [] }));
-  for (const it of cells) {
+  for (const it of items) {
     const ar = Math.min(2, Math.max(0.5, it.w / it.h)); const th = TILE_W / ar;
     const c = cols.reduce((a, b) => (b.h < a.h ? b : a));
     c.list.push({ item: it, h: th }); c.h += th + GAP;
   }
-  const H = Math.max(...cols.map((c) => c.h));
-  const out = [];
-  cols.forEach((c, ci) => {            // iguala a altura das colunas para o mural emendar sem buracos
-    const k = (H - c.list.length * GAP) / c.list.reduce((s, t) => s + t.h, 0); let y = 0;
-    for (const t of c.list) { const h = t.h * k; out.push({ item: t.item, x: ci * (TILE_W + GAP), y, w: TILE_W, h }); y += h + GAP; }
+  const Wd = C * (TILE_W + GAP) - GAP, Hd = Math.max(...cols.map((c) => c.h)) - GAP;
+  const cells = [];
+  cols.forEach((c, ci) => {
+    let y = 0;
+    for (const t of c.list) { cells.push({ item: t.item, x: ci * (TILE_W + GAP) - Wd / 2, y: y - Hd / 2, w: TILE_W, h: t.h }); y += t.h + GAP; }
   });
-  return { cells: out, W: C * (TILE_W + GAP), H };
+  return { cells, W: Wd, H: Hd };
 }
-const wallMinZoom = () => { const L = W.layout; return Math.max(0.3, innerWidth / (3 * L.W), innerHeight / (3 * L.H)); };
+const wallFitZoom = () => Math.min(1, (innerWidth * 0.88) / W.layout.W, (innerHeight * 0.82) / W.layout.H);
+const wallMinZoom = () => Math.max(0.12, wallFitZoom() * 0.7);
 
-async function makeWallThumb(it) {   // miniatura leve para o mural (evita desenhar dezenas de imagens grandes)
-  if (it.wurl || it.wpending) return; it.wpending = true;
-  try {
-    const bmp = await createImageBitmap(it.blob, { resizeWidth: 480, resizeQuality: 'medium' });
-    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
-    const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82)); it.wurl = URL.createObjectURL(b);
+// Miniatura leve (640 px) guardada junto da imagem: o mural e o histórico não desenham imagens grandes.
+const persist = (it) => { const { url, wurl, wpending, ...rest } = it; return dbPut(rest); };
+async function makeWallThumb(it) {
+  const apply = () => {
     for (const [, t] of W.tiles) if (t.dataset.id === it.id) t.firstChild.src = it.wurl;
+    const th = thumbOf(it.id)?.querySelector('img'); if (th) th.src = it.wurl;
+  };
+  if (it.wurl) return;
+  if (it.tblob) { it.wurl = URL.createObjectURL(it.tblob); apply(); return; }
+  if (it.wpending) return; it.wpending = true;
+  try {
+    const bmp = await createImageBitmap(it.blob, { resizeWidth: 640, resizeQuality: 'medium' });
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0); bmp.close?.();
+    it.tblob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
+    it.wurl = URL.createObjectURL(it.tblob); apply(); persist(it);
   } catch { /* SVG ou formato sem suporte: segue com a imagem original */ }
+  it.wpending = false;
+}
+let thumbQueue = Promise.resolve();
+const queueThumbs = (items) => items.forEach((it) => { thumbQueue = thumbQueue.then(() => makeWallThumb(it)); });
+
+function clampCam() {
+  const L = W.layout; const hw = innerWidth / (2 * W.z), hh = innerHeight / (2 * W.z); const pad = 90 / W.z;
+  const fx = L.W / 2 + pad - hw, fy = L.H / 2 + pad - hh;
+  W.cx = fx <= 0 ? 0 : Math.max(-fx, Math.min(fx, W.cx));
+  W.cy = fy <= 0 ? 0 : Math.max(-fy, Math.min(fy, W.cy));
 }
 
 function renderWall() {
   const L = W.layout; if (!L) return;
-  const vw = innerWidth, vh = innerHeight; const hw = vw / (2 * W.z) + 60, hh = vh / (2 * W.z) + 60;
+  const vw = innerWidth, vh = innerHeight; const hw = vw / (2 * W.z) + 80, hh = vh / (2 * W.z) + 80;
   worldEl.style.transform = `translate(${vw / 2}px, ${vh / 2}px) scale(${W.z}) translate(${-W.cx}px, ${-W.cy}px)`;
   const need = new Set();
-  const i0 = Math.floor((W.cx - hw) / L.W), i1 = Math.floor((W.cx + hw) / L.W);
-  const j0 = Math.floor((W.cy - hh) / L.H), j1 = Math.floor((W.cy + hh) / L.H);
-  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-    L.cells.forEach((c, k) => {
-      const x = c.x + i * L.W, y = c.y + j * L.H;
-      if (x > W.cx + hw || x + c.w < W.cx - hw || y > W.cy + hh || y + c.h < W.cy - hh) return;
-      const key = `${i}|${j}|${k}`; need.add(key);
-      if (W.tiles.has(key)) return;
-      const el = document.createElement('div'); el.className = `wtile${c.item.id === shown?.id ? ' current' : ''}`; el.dataset.id = c.item.id;
-      Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${c.w}px`, height: `${c.h}px` });
-      const im = document.createElement('img'); im.src = c.item.wurl || c.item.url; im.alt = ''; im.draggable = false; el.append(im);
-      worldEl.append(el); W.tiles.set(key, el);
-    });
-  }
-  for (const [key, el] of W.tiles) if (!need.has(key)) { el.remove(); W.tiles.delete(key); }
+  L.cells.forEach((c, k) => {          // só existem no DOM as imagens que aparecem na tela
+    if (c.x > W.cx + hw || c.x + c.w < W.cx - hw || c.y > W.cy + hh || c.y + c.h < W.cy - hh) return;
+    need.add(k);
+    if (W.tiles.has(k)) return;
+    const el = document.createElement('div'); el.className = `wtile${c.item.id === shown?.id ? ' current' : ''}`; el.dataset.id = c.item.id;
+    Object.assign(el.style, { left: `${c.x}px`, top: `${c.y}px`, width: `${c.w}px`, height: `${c.h}px` });
+    const im = document.createElement('img'); im.src = c.item.wurl || c.item.url; im.alt = ''; im.draggable = false; im.decoding = 'async'; el.append(im);
+    worldEl.append(el); W.tiles.set(k, el);
+  });
+  for (const [k, el] of W.tiles) if (!need.has(k)) { el.remove(); W.tiles.delete(k); }
 }
 
 function wallTick() {
@@ -415,10 +429,15 @@ function wallTick() {
     W.z += (W.zt - W.z) * 0.2; W.dirty = true;
     if (W.anchor) { W.cx = W.anchor.wx - (W.anchor.sx - vw / 2) / W.z; W.cy = W.anchor.wy - (W.anchor.sy - vh / 2) / W.z; }
   } else if (W.z !== W.zt) { W.z = W.zt; W.dirty = true; }
-  if (!W.dragging && (Math.abs(W.vx) > 0.15 || Math.abs(W.vy) > 0.15)) {
-    W.cx -= W.vx / W.z; W.cy -= W.vy / W.z; W.vx *= 0.94; W.vy *= 0.94; W.dirty = true;
+  const gliding = !W.dragging && (Math.abs(W.vx) > 0.15 || Math.abs(W.vy) > 0.15);
+  if (gliding) { W.cx -= W.vx / W.z; W.cy -= W.vy / W.z; W.vx *= 0.93; W.vy *= 0.93; W.dirty = true; }
+  const panning = W.dragging || gliding;   // camada própria só enquanto arrasta; parado, o mural é redesenhado nítido
+  if (panning !== W.layer) { W.layer = panning; worldEl.style.willChange = panning ? 'transform' : ''; }
+  if (W.dirty) {
+    W.dirty = false; const px = W.cx, py = W.cy; clampCam();
+    if (gliding && (px !== W.cx || py !== W.cy)) { W.vx = 0; W.vy = 0; }
+    renderWall();
   }
-  if (W.dirty) { W.dirty = false; renderWall(); }
   W.raf = requestAnimationFrame(wallTick);
 }
 function wallZoomTo(zt, sx = innerWidth / 2, sy = innerHeight / 2) {
@@ -430,13 +449,12 @@ function openWall() {
   if (wallOpen || wallClosing || !history.length) return;
   closePops(); resetView(); wallOpen = true;
   W.layout = layoutWall(history); W.tiles.clear(); worldEl.innerHTML = '';
-  const cur = W.layout.cells.find((c) => c.item.id === shown?.id) || W.layout.cells[0];
-  W.cx = cur.x + cur.w / 2; W.cy = cur.y + cur.h / 2; W.vx = W.vy = 0; W.anchor = null;
-  const target = Math.max(wallMinZoom(), innerWidth < 820 ? 0.7 : 0.85);
-  W.z = Math.min(2.4, target * 1.5); W.zt = target; W.dirty = true;
+  W.cx = 0; W.cy = 0; W.vx = W.vy = 0; W.anchor = null; W.layer = false;
+  const fit = wallFitZoom();
+  W.z = Math.min(2.4, fit * 1.35); W.zt = fit; W.dirty = true;   // entra "afastando" até caber tudo na tela
   document.body.classList.add('walling'); wallEl.hidden = false; void wallEl.offsetWidth; wallEl.classList.add('open');
   renderWall(); cancelAnimationFrame(W.raf); W.raf = requestAnimationFrame(wallTick);
-  history.forEach((it) => makeWallThumb(it));
+  queueThumbs(history);
 }
 
 function closeWall(item, tileEl) {
@@ -445,7 +463,7 @@ function closeWall(item, tileEl) {
   wallEl.classList.remove('open');
   const fin = () => {
     wallOpen = false; wallClosing = false; cancelAnimationFrame(W.raf);
-    wallEl.hidden = true; worldEl.innerHTML = ''; W.tiles.clear(); document.body.classList.remove('walling');
+    wallEl.hidden = true; worldEl.innerHTML = ''; worldEl.style.willChange = ''; W.tiles.clear(); document.body.classList.remove('walling');
   };
   const wait = new Promise((r) => setTimeout(r, 460));
   if (item && tileEl && !busy) {
@@ -503,7 +521,7 @@ function renderHistory() {
   for (const it of history) {
     const d = document.createElement('div');
     d.className = `thumb${shown?.id === it.id ? ' active' : ''}`; d.dataset.id = it.id; d.style.aspectRatio = '1';
-    d.innerHTML = `<img src="${it.url}" alt="" loading="lazy" decoding="async"><button class="open" aria-label="Abrir imagem"></button><button class="x" aria-label="Excluir">${icon('x')}</button>`;
+    d.innerHTML = `<img src="${it.wurl || it.url}" alt="" loading="lazy" decoding="async"><button class="open" aria-label="Abrir imagem"></button><button class="x" aria-label="Excluir">${icon('x')}</button>`;
     d.querySelector('.open').onclick = () => openFromThumb(it, d);
     d.querySelector('.x').onclick = (e) => { e.stopPropagation(); removeItem(it); };
     box.append(d);
@@ -516,7 +534,7 @@ async function removeItem(it) {
     resetStage(); $('#bgimg').classList.remove('on');
     if (history[0]) showItem(history[0]);
   }
-  URL.revokeObjectURL(it.url);
+  URL.revokeObjectURL(it.url); if (it.wurl) URL.revokeObjectURL(it.wurl);
   renderHistory(); fitFrame();
 }
 
@@ -795,9 +813,9 @@ async function generate() {
     const dim = await new Promise((r) => { const i = new Image(); i.onload = () => r({ w: i.naturalWidth || d.w, h: i.naturalHeight || d.h }); i.onerror = () => r(d); i.src = url; });
     const item = { id: crypto.randomUUID(), blob, url, prompt: text, model: m.id, w: dim.w, h: dim.h, ratio: S.ratio, tier: S.tier, cost, t: Date.now(), refs: activeRefs(m).length };
     addUsed(cost);
-    history.unshift(item); await dbPut({ ...item, url: undefined });
+    history.unshift(item); await persist(item);
     for (const old of history.splice(60)) { dbDel(old.id); URL.revokeObjectURL(old.url); }
-    setBusy(false); showItem(item); renderHistory(); refresh(); warmDecode([item]);
+    setBusy(false); showItem(item); renderHistory(); refresh(); warmDecode([item]); queueThumbs([item]);
     setTimeout(() => syncUsage(), 20000);
   } catch (e) {
     setBusy(false);
@@ -887,10 +905,10 @@ prompt.value = S.prompt || '';
 if (!modelById(S.model) || !MODELS.some((m) => m.id === S.model)) S.model = MODELS[0].id;
 grow(); refresh();
 dbAll().then((all) => {
-  history = all.sort((a, b) => b.t - a.t).map((it) => ({ ...it, url: URL.createObjectURL(it.blob) }));
+  history = all.sort((a, b) => b.t - a.t).map((it) => ({ ...it, url: URL.createObjectURL(it.blob), wurl: it.tblob ? URL.createObjectURL(it.tblob) : undefined }));
   renderHistory();
   if (history[0]) showItem(history[0]);
-  warmDecode(history.slice(0, 12));
+  warmDecode(history.slice(0, 12)); queueThumbs(history);
 });
 syncUsage();
 $('#errClose').onclick = clearError;

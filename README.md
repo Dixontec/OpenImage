@@ -13,6 +13,7 @@ No dependencies, no build step, no database. Just Node.js and a browser.
 - **Aspect ratio & size** — 10 ratios (1:1 → 21:9) and three sizes (≈0.5, 1 and 2 megapixels). The preview frame reshapes to the chosen ratio.
 - **Free-quota panel** — a ring in the header shows remaining neurons out of 10,000/day, time until the 00:00 UTC reset, and how many images each model still fits.
 - **History** — the last 60 images are kept in your browser (IndexedDB). Click the blurred background to tuck the current image into the history; click a thumbnail to bring it back.
+- **Zoom & gallery wall** — scroll to zoom the open image (drag to pan, double-click to toggle). Keep scrolling out at 100% to open a mosaic of your whole history, each image shown once; drag, zoom, then click an image to open it or click the background to go back.
 - **Actions** — download, reuse prompt and settings, or send the result back in as a reference to iterate.
 - **Keyboard** — `Ctrl/Cmd+Enter` generates.
 - **Responsive**, reduced-motion friendly, dark glass UI.
@@ -126,6 +127,7 @@ Sem dependências, sem build, sem banco de dados. Só Node.js e um navegador.
 - **Proporção e tamanho** — 10 proporções (1:1 → 21:9) e três tamanhos (≈0,5, 1 e 2 megapixels). O quadro de prévia muda de forma conforme a proporção.
 - **Painel da cota gratuita** — um anel no topo mostra os neurônios restantes dos 10.000/dia, o tempo até o reinício às 00:00 UTC e quantas imagens ainda cabem em cada modelo.
 - **Histórico** — as últimas 60 imagens ficam no seu navegador (IndexedDB). Clique no fundo desfocado para guardar a imagem atual no histórico; clique numa miniatura para trazê-la de volta.
+- **Zoom e mural** — role para dar zoom na imagem aberta (arraste para mover, duplo clique alterna). Continue rolando para fora a 100% para abrir um mosaico com todo o histórico, cada imagem uma única vez; arraste, dê zoom e clique numa imagem para abri-la ou no fundo para voltar.
 - **Ações** — baixar, reutilizar prompt e ajustes, ou usar o resultado como referência para iterar.
 - **Teclado** — `Ctrl/Cmd+Enter` gera.
 - **Responsivo**, respeita "reduzir movimento", interface escura em vidro.
