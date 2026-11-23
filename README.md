@@ -43,16 +43,16 @@ Change the port with `PORT=4000 npm start`.
 3. *(Optional)* Add **Account Analytics · Read** to the token so OpenImage can read your real neuron usage.
 4. In OpenImage click the key icon (top right), paste both values, press **Test** and then **Save**.
 
-## Desktop app (Linux AppImage)
+## Desktop app (Windows & Linux)
 
-Download `OpenImage-1.0.0-x86_64.AppImage` from the [Releases](../../releases) page, make it executable and run it. It opens in its own window (no browser) and adds itself to your app menu on first run.
+Download from the [Releases](../../releases) page: **Windows** → `OpenImage-1.0.0-x64-portable.exe` (just double-click; Windows SmartScreen may warn because the app is unsigned — choose *More info → Run anyway*). **Linux** → `OpenImage-1.0.0-x86_64.AppImage`: make it executable and run it. It opens in its own window (no browser) and adds itself to your app menu on first run.
 
 ```bash
 chmod +x OpenImage-1.0.0-x86_64.AppImage
 ./OpenImage-1.0.0-x86_64.AppImage
 ```
 
-Build it yourself with `npm install && npm run dist` (output in `dist/`). Your token stays on your machine, in the app's local storage.
+Build it yourself with `npm install && npm run dist` (Linux) or `npm run dist:win` (Windows exe) (output in `dist/`). Your token stays on your machine, in the app's local storage.
 
 ## How it works
 
@@ -168,16 +168,16 @@ Mude a porta com `PORT=4000 npm start`.
 3. *(Opcional)* Adicione **Account Analytics · Read** ao token para o OpenImage ler o consumo real de neurônios.
 4. No OpenImage clique no ícone de chave (canto superior direito), cole os dois valores, use **Testar** e depois **Salvar**.
 
-## App desktop (AppImage para Linux)
+## App desktop (Windows e Linux)
 
-Baixe `OpenImage-1.0.0-x86_64.AppImage` na página de [Releases](../../releases), dê permissão de execução e abra. Ele abre em janela própria (sem navegador) e se adiciona ao menu de aplicativos na primeira execução.
+Baixe na página de [Releases](../../releases): **Windows** → `OpenImage-1.0.0-x64-portable.exe` (basta dar dois cliques; o SmartScreen pode avisar porque o app não é assinado — clique em *Mais informações → Executar assim mesmo*). **Linux** → `OpenImage-1.0.0-x86_64.AppImage`: dê permissão de execução e abra. Ele abre em janela própria (sem navegador) e se adiciona ao menu de aplicativos na primeira execução.
 
 ```bash
 chmod +x OpenImage-1.0.0-x86_64.AppImage
 ./OpenImage-1.0.0-x86_64.AppImage
 ```
 
-Para gerar você mesmo: `npm install && npm run dist` (saída em `dist/`). Seu token fica só na sua máquina, no armazenamento local do app.
+Para gerar você mesmo: `npm install && npm run dist` (Linux) ou `npm run dist:win` (exe do Windows) (saída em `dist/`). Seu token fica só na sua máquina, no armazenamento local do app.
 
 ## Como funciona
 

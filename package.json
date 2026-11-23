@@ -12,9 +12,12 @@
     "start": "node server.js",
     "demo": "MOCK=1 node server.js",
     "desktop": "electron .",
-    "dist": "electron-builder --linux AppImage"
+    "dist": "electron-builder --linux AppImage",
+    "dist:win": "electron-builder --win portable"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "electron": "^45.3.0",
     "electron-builder": "^26.18.0"
@@ -23,11 +26,27 @@
     "appId": "dev.openimage.app",
     "productName": "OpenImage",
     "artifactName": "OpenImage-${version}-x86_64.AppImage",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["electron/**", "public/**", "server.js", "build/icon*.png", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "public/**",
+      "server.js",
+      "build/icon*.png",
+      "package.json"
+    ],
     "asar": true,
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.png",
       "category": "Graphics",
       "synopsis": "Gerador de imagens com Workers AI",
@@ -40,6 +59,21 @@
           "Keywords": "image;ai;flux;cloudflare;imagem;"
         }
       }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "OpenImage"
+    },
+    "portable": {
+      "artifactName": "OpenImage-${version}-x64-portable.exe"
     }
   }
 }

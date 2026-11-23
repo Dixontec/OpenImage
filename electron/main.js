@@ -15,8 +15,9 @@ const APP_ID = 'openimage';
 
 // AppImage não consegue instalar o chrome-sandbox com setuid; sem isso o Chromium
 // aborta em distros com userns restrito. O app só carrega conteúdo local.
-app.commandLine.appendSwitch('no-sandbox');
+if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
 app.setName('OpenImage');
+if (process.platform === 'win32') app.setAppUserModelId('dev.openimage.app'); // agrupa/ícone na barra de tarefas
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
