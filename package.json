@@ -4,9 +4,42 @@
   "description": "Minimal glass-style image generator on top of Cloudflare Workers AI (free tier). Bring your own API token.",
   "private": true,
   "type": "module",
+  "main": "electron/main.js",
+  "author": "Dixon",
+  "homepage": "https://github.com/openimage/openimage",
+  "desktopName": "openimage.desktop",
   "scripts": {
     "start": "node server.js",
-    "demo": "MOCK=1 node server.js"
+    "demo": "MOCK=1 node server.js",
+    "desktop": "electron .",
+    "dist": "electron-builder --linux AppImage"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "dev.openimage.app",
+    "productName": "OpenImage",
+    "artifactName": "OpenImage-${version}-x86_64.AppImage",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["electron/**", "public/**", "server.js", "build/icon*.png", "package.json"],
+    "asar": true,
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "category": "Graphics",
+      "synopsis": "Gerador de imagens com Workers AI",
+      "executableName": "openimage",
+      "desktop": {
+        "entry": {
+          "Name": "OpenImage",
+          "Comment": "Gerador de imagens com Cloudflare Workers AI",
+          "StartupWMClass": "openimage",
+          "Keywords": "image;ai;flux;cloudflare;imagem;"
+        }
+      }
+    }
+  }
 }

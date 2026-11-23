@@ -5,7 +5,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
 const PORT = Number(process.env.PORT || 3210);
@@ -167,8 +167,8 @@ async function serveStatic(req, res) {
   }
 }
 
-http
-  .createServer(async (req, res) => {
+export function startServer(port = PORT) {
+  const server = http.createServer(async (req, res) => {
     try {
       if (req.method === 'POST' && req.url === '/api/generate') return await generate(req, res);
       if (req.method === 'POST' && req.url === '/api/verify') return await verify(req, res);
@@ -179,7 +179,15 @@ http
     } catch (e) {
       if (!res.headersSent) json(res, 500, { error: e.message });
     }
-  })
-  .listen(PORT, '127.0.0.1', () => {
-    console.log(`\n  OpenImage rodando em http://localhost:${PORT}${MOCK ? '  (modo demonstração)' : ''}\n`);
   });
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve(server));
+  });
+}
+
+// Executado direto (`node server.js`): sobe o servidor. Importado pelo Electron: não sobe sozinho.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const server = await startServer();
+  console.log(`\n  OpenImage rodando em http://localhost:${server.address().port}${MOCK ? '  (modo demonstração)' : ''}\n`);
+}
